@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>挪威縮影互動行程</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fee2e2; /* Light red-100 background for a soft red theme */
+        }
+        .timeline-line {
+            position: absolute;
+            left: 2.5rem;
+            top: 1rem;
+            bottom: 1rem;
+            width: 4px;
+            background-color: #dc2626; /* Tailwind red-600 for the line */
+            transform: translateX(-50%);
+        }
+        .timeline-item:last-child .timeline-line {
+            display: none;
+        }
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            background-color: #b91c1c; /* Tailwind red-700 for active tab */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 120px;
+            max-height: 200px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 150px;
+            }
+        }
+
+        /* Fullscreen Map Modal Styles */
+        #fullscreen-map-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        #fullscreen-map-modal.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #fullscreen-map-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* shadow-xl */
+        }
+
+        #fullscreen-map-close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            z-index: 1001;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="modal" class="modal fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 hidden opacity-0">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-auto transform transition-transform duration-300 scale-95">
+            <div class="p-6 relative">
+                <button id="modal-close-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-800 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+                <h3 id="modal-title" class="text-2xl font-bold text-gray-900 mb-4"></h3>
+                <div id="modal-content" class="text-gray-600 space-y-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Map Modal -->
+    <div id="fullscreen-map-modal">
+        <button id="fullscreen-map-close-btn">&times;</button>
+        <img id="fullscreen-map-image" src="" alt="挪威縮影路線圖 - 全螢幕">
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-red-700">🇳🇴 挪威縮影</h1>
+            <p class="text-lg text-gray-600 mt-2">2025年7月22日 - 7月23日 詳細行程</p>
+        </header>
+
+        <main>
+            <div class="flex flex-wrap justify-center mb-8 space-x-2 md:space-x-4 bg-red-200 p-2 rounded-full">
+                <button id="overview-btn" class="tab-btn w-full sm:w-auto text-lg font-bold py-3 px-4 rounded-full active">總覽</button>
+                <button id="day1-btn" class="tab-btn w-full sm:w-auto text-lg font-bold py-3 px-4 rounded-full">第一天 (7/22)</button>
+                <button id="day2-btn" class="tab-btn w-full sm:w-auto text-lg font-bold py-3 px-4 rounded-full">第二天 (7/23)</button>
+                <button id="activities-btn" class="tab-btn w-full sm:w-auto text-lg font-bold py-3 px-4 rounded-full">活動建議</button>
+            </div>
+
+            <div id="overview-content" class="tab-content bg-white p-6 rounded-2xl shadow-lg mb-8">
+                <h2 class="text-2xl font-bold text-center mb-4 text-gray-800">旅程簡介</h2>
+                <p class="text-gray-700 leading-relaxed mb-6 text-center">
+                    您的「挪威縮影」(Sognefjord in a Nutshell™) 之旅將於2025年7月22日展開，這是一趟精心設計的自助式行程，旨在提供一場宏偉的峽灣探險。這趟旅程巧妙地結合了多種交通方式，帶您深入體驗挪威最令人屏息的自然風光。
+                    <br><br>
+                    行程的核心亮點包括：
+                    <br>
+                    <ul>
+                        <li><strong>卑爾根鐵路 (Bergensbanen)：</strong> 這條常被國家地理雜誌評為全球最精采的火車旅程之一，將帶您穿越崎嶇的山脈、鬱鬱蔥蔥的山谷和寧靜的峽灣，從奧斯陸舒適地抵達米達爾，沿途風景不斷變化，包括白雪皚皚的山脈和歐洲最高的高原。</li>
+                        <li><strong>弗洛姆鐵路 (Flåmsbana)：</strong> 這條被譽為世界上最令人難以置信的鐵路旅程之一，將帶您從高山車站米達爾 (Myrdal) 下降到弗洛姆 (Flåm)。沿途您將目睹傾瀉而下的瀑布、深邃的峽谷和繁茂的景觀，感受這條全球最陡峭鐵路之一的工程奇蹟。</li>
+                        <li><strong>松恩峽灣遊船：</strong> 您將在挪威最長、最深的峽灣上享受一段寧靜而如畫的遊船之旅，其中包括被聯合國教科文組織列為世界遺產的艾於蘭峽灣 (Aurlandsfjord)。船隻將在兩岸高聳的山脈和古樸的村莊之間滑行，呈現令人難忘的水上景致。</li>
+                    </ul>
+                    <br>
+                    這趟自助遊程提供了極大的靈活性，讓您可以根據個人喜好增加活動或選擇在迷人的巴勒斯特蘭 (Balestrand) 村莊過夜，該地以其壯觀的景色和獨特的「龍式」建築風格而聞名。整個行程在每年4月1日至10月31日期間運營，確保您在最佳季節體驗挪威的自然奇觀。這兩天的旅程將為四名成人和兩名兒童的家庭團體帶來一次無縫且豐富的挪威探險，留下對挪威迷人景觀和豐富文化遺產的持久記憶。
+                </p>
+                <h2 class="text-2xl font-bold text-center mb-4 text-gray-800">路線概覽圖</h2>
+                <!-- Image for the route map that can be clicked to enlarge -->
+                <div id="route-map-container" class="cursor-pointer overflow-hidden rounded-xl shadow-md mb-6 border border-gray-200">
+                    <img id="route-map-thumbnail" src="https://cdn.sanity.io/images/4aans0in/production/661677de12b4359730baef1f8439af4aa32eb632-1312x697.svg?rect=37,0,1239,697&w=3840&h=2160&fm=webp&q=100&fit=max&auto=format"
+                         alt="挪威縮影路線圖" class="w-full h-auto object-cover rounded-xl"
+                         onerror="this.onerror=null; this.src='https://placehold.co/800x400/FFCCCC/CC0000?text=圖片載入失敗';">
+                </div>
+                <p class="text-sm text-gray-500 text-center mt-2">點擊地圖放大查看詳情。</p>
+
+                <h2 class="text-2xl font-bold text-center mb-4 text-gray-800">旅程時間分配</h2>
+                <div class="chart-container">
+                    <canvas id="durationChart"></canvas>
+                </div>
+                <p class="text-sm text-gray-500 text-center mt-2">這張圖表顯示了您在各段交通工具上所花費的時間比例，幫助您快速了解旅程的構成。</p>
+            </div>
+
+            <div id="day1-content" class="tab-content bg-white p-6 rounded-2xl shadow-lg hidden relative">
+                <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">第一天行程概覽 (7/22)</h2>
+                <div class="timeline-line hidden md:block absolute left-[44px] top-24 bottom-6 w-[4px] bg-red-600 transform -translate-x-1/2 z-0"></div>
+                <div class="space-y-12 relative pl-10 z-10 timeline-items-container">
+                    <!-- Timeline items will be appended here -->
+                </div>
+            </div>
+
+            <div id="day2-content" class="tab-content bg-white p-6 rounded-2xl shadow-lg hidden relative">
+                <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">第二天行程概覽 (7/23)</h2>
+                <div class="timeline-line hidden md:block absolute left-[44px] top-24 bottom-6 w-[4px] bg-red-600 transform -translate-x-1/2 z-0"></div>
+                <div class="space-y-12 relative pl-10 z-10 timeline-items-container">
+                    <!-- Timeline items will be appended here -->
+                </div>
+            </div>
+
+            <div id="activities-content" class="tab-content bg-white p-6 rounded-2xl shadow-lg hidden">
+                <h2 class="text-2xl font-bold text-center mb-4 text-gray-800">活動建議</h2>
+
+                <section class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">弗洛姆活動建議</h3>
+                    <p class="text-gray-700 mb-3">
+                        鑑於您在弗洛姆的停留時間約為2小時26分鐘（下午13:04抵達，下午15:30出發），活動選擇應簡短且易於從港口到達。
+                    </p>
+                    <ul class="list-disc list-inside text-gray-700 space-y-2">
+                        <li><strong>強烈推薦 (簡短且易於到達)：</strong>
+                            <ul class="list-disc list-inside ml-4">
+                                <li>快速用餐/小吃：利用這段時間在弗洛姆的咖啡館或餐廳享用快速午餐或小吃。</li>
+                                <li>漫步弗洛姆村：探索港口周邊地區，享受峽灣氛圍。</li>
+                            </ul>
+                        </li>
+                        <li><strong>可能可行 (如果時間允許且節奏良好)：</strong>
+                            <ul class="list-disc list-inside ml-4">
+                                <li>電動小巴前往斯泰格斯坦觀景台 (Stegastein Viewpoint)：1小時30分鐘，可從650公尺高處欣賞艾於蘭峽灣的壯觀全景。</li>
+                                <li>當地美食品嚐：約1小時。</li>
+                                <li>弗洛姆峽灣桑拿 (Fjord Sauna in Flåm)：1小時30分鐘，提供熱氣騰騰的桑拿浴後在峽灣中清爽浸泡。</li>
+                            </ul>
+                        </li>
+                        <li><strong>不可行 (由於時間限制)：</strong>
+                            <ul class="list-disc list-inside ml-4">
+                                <li>皮划艇 (3小時)、遺產RIB快艇之旅 (2小時15分鐘)、弗洛姆高空滑索 (1-2小時) 或各種徒步旅行 (2-8小時)。這些活動需要延長在弗洛姆的停留時間，不適合本次行程。</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">巴勒斯特蘭活動建議</h3>
+                    <p class="text-gray-700 mb-3">
+                        您將於7月22日下午16:50抵達巴勒斯特蘭，並於7月23日早上07:50清晨搭乘渡輪離開。因此，所有活動都必須安排在第一天晚上進行。
+                    </p>
+                    <ul class="list-disc list-inside text-gray-700 space-y-2">
+                        <li><strong>強烈推薦 (7月22日晚間)：</strong>
+                            <ul class="list-disc list-inside ml-4">
+                                <li>探索巴勒斯特蘭村和聖奧拉夫教堂：悠閒地漫步村莊，欣賞其迷人的木屋和獨特的聖奧拉夫教堂 (啟發迪士尼電影《冰雪奇緣》)。</li>
+                                <li>峽灣旁晚餐：在巴勒斯特蘭當地餐廳享用晚餐，例如在海濱餐廳品嚐新鮮海鮮。</li>
+                                <li>悠閒地散步：沿著峽灣邊緣的步道散步，欣賞日落或享受寧靜的夜晚。</li>
+                                <li>家庭遊戲時間/故事會：在您的住宿地點，享受輕鬆的家庭時光，玩遊戲或講故事。</li>
+                                <li>攝影機會：利用傍晚的柔和光線，捕捉巴勒斯特蘭和峽灣的美景。</li>
+                            </ul>
+                        </li>
+                        <li><strong>不可行 (由於時間限制)：</strong>
+                            <ul class="list-disc list-inside ml-4">
+                                <li>較長時間的遊覽，例如峽灣與冰川之旅 (4小時30分鐘) 或全面的RIB快艇之旅 (1小時30分鐘至2小時)。前往勞德梅倫山（Mt Raudmelen）的導覽徒步旅行也通常是較長的活動。</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </section>
+            </div>
+
+        </main>
+        
+        <footer class="text-center mt-12 text-sm text-gray-500">
+            <p>祝您旅途愉快！</p>
+        </footer>
+    </div>
+
+    <script>
+        const itineraryData = {
+            day1: [
+                {
+                    time: "06:20 - 11:15",
+                    duration: "4小時55分",
+                    title: "火車：奧斯陸 (Oslo S) → 米達爾 (Myrdal)",
+                    icon: "🚆",
+                    bgColor: "bg-red-200", /* Light red for icon background */
+                    textColor: "text-red-900", /* Dark red for icon text */
+                    details: `
+                        <p><strong>營運公司:</strong> Vy</p>
+                        <p><strong>車次:</strong> F4 Bergen Track 4</p>
+                        <p><strong>車廂:</strong> 3號車廂 (家庭車廂)</p>
+                        <p><strong>座位:</strong> 25, 26, 29, 30, 31, 32</p>
+                        <p class="mt-2 text-sm text-gray-500">展開世界著名的卑爾根鐵路之旅，沿途欣賞挪威壯麗的山脈與高原景觀。</p>
+                    `
+                },
+                {
+                    time: "12:06 - 13:04",
+                    duration: "58分",
+                    title: "火車：米達爾 (Myrdal) → 弗洛姆 (Flåm)",
+                    icon: "🛤️",
+                    bgColor: "bg-blue-200", /* Light blue for icon background */
+                    textColor: "text-blue-900", /* Dark blue for icon text */
+                    details: `
+                        <p><strong>營運公司:</strong> Vy</p>
+                        <p><strong>車次:</strong> R45 Flåm Track 11</p>
+                        <p><strong>座位:</strong> 自由入座 (建議坐第6車廂)</p>
+                        <p class="mt-2 text-sm text-gray-500">體驗全球最陡峭的鐵路之一——弗洛姆鐵路，欣賞令人屏息的瀑布與峽谷。</p>
+                    `
+                },
+                {
+                    time: "15:30 - 16:50",
+                    duration: "1小時20分",
+                    title: "渡輪：弗洛姆 (Flåm) → 巴勒斯特蘭 (Balestrand)",
+                    icon: "🚢",
+                    bgColor: "bg-red-200", /* Light red for icon background */
+                    textColor: "text-red-900", /* Dark red for icon text */
+                    details: `
+                        <p><strong>營運公司:</strong> Norled</p>
+                        <p><strong>預訂編號:</strong> 1327133235</p>
+                        <p><strong>路線:</strong> Flåm kai - Balestrand kai</p>
+                        <p class="mt-2 text-sm text-gray-500">搭乘渡輪穿越壯麗的松恩峽灣，旅程將經過被聯合國教科文組織列為世界遺產的艾於蘭峽灣，然後沿著挪威最長、最深的松恩峽灣前行。</p>
+                    `
+                },
+                {
+                    time: "16:50 以後",
+                    duration: "",
+                    title: "抵達 & 入住巴勒斯特蘭",
+                    icon: "🏨",
+                    bgColor: "bg-blue-200", /* Light blue for icon background */
+                    textColor: "text-blue-900", /* Dark blue for icon text */
+                    details: `
+                        <p><strong>住宿地址:</strong> Kaivegen 4, Balestrand kommune, Sogn og Fjordane 6899, 挪威</p>
+                        <p><strong>入住時間:</strong> 2025年7月22日 (週二) 下午 3:00</p>
+                        <p><strong>入住方式:</strong> 密碼鑰匙盒 (詳情請與房東確認)</p>
+                        <p><strong>入住人數:</strong> 4位成人, 2位兒童</p>
+                        <p class="mt-2 text-sm text-gray-500">在風景如畫的峽灣小鎮巴勒斯特蘭安頓下來，準備享受寧靜的夜晚。</p>
+                    `
+                }
+            ],
+            day2: [
+                 {
+                    time: "07:50 之前",
+                    duration: "",
+                    title: "退房準備",
+                    icon: "🧳",
+                    bgColor: "bg-red-200", /* Light red for icon background */
+                    textColor: "text-red-900", /* Dark red for icon text */
+                    details: `
+                        <p><strong>退房時間:</strong> 2025年7月23日 (週三) 上午 11:00</p>
+                        <p class="mt-2 text-sm text-gray-500">雖然退房時間是11:00，但為了趕上07:50的渡輪，請務必提早準備好行李並辦理離宿手續。</p>
+                    `
+                },
+                {
+                    time: "07:50 - 11:50",
+                    duration: "4小時",
+                    title: "渡輪：巴勒斯特蘭 (Balestrand) → 卑爾根 (Bergen)",
+                    icon: "🚢",
+                    bgColor: "bg-blue-200", /* Light blue for icon background */
+                    textColor: "text-blue-900", /* Dark blue for icon text */
+                    details: `
+                        <p><strong>營運公司:</strong> Norled</p>
+                        <p><strong>預訂編號:</strong> 1998221682</p>
+                        <p><strong>路線:</strong> Balestrand kai - Bergen Strandkaiterminal</p>
+                        <p class="mt-2 text-sm text-gray-500">繼續您在壯麗的松恩峽灣上的巡遊，駛向旅程的終點——迷人的港口城市卑爾根。</p>
+                    `
+                },
+                {
+                    time: "11:50",
+                    duration: "",
+                    title: "抵達卑爾根，開始另一段旅程",
+                    icon: "🏁",
+                    bgColor: "bg-gray-100", /* Neutral ending color, keeping consistent with previous neutral */
+                    textColor: "text-gray-800",
+                    details: `
+                        <p>歡迎來到卑爾根！您的「挪威縮影」行程在此圓滿結束，但也是您探索這座美麗城市的開始。</p>
+                        <p class="mt-2 text-sm text-gray-500">建議您可以多停留一兩天，探索這座被列為世界遺產的美麗城市，特別是布呂根碼頭。</p>
+                    `
+                }
+            ]
+        };
+
+        const overviewBtn = document.getElementById('overview-btn');
+        const day1Btn = document.getElementById('day1-btn');
+        const day2Btn = document.getElementById('day2-btn');
+        const activitiesBtn = document.getElementById('activities-btn');
+
+        const overviewContent = document.getElementById('overview-content');
+        const day1Content = document.getElementById('day1-content');
+        const day2Content = document.getElementById('day2-content');
+        const activitiesContent = document.getElementById('activities-content');
+
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        const fullscreenMapModal = document.getElementById('fullscreen-map-modal');
+        const fullscreenMapImage = document.getElementById('fullscreen-map-image');
+        const fullscreenMapCloseBtn = document.getElementById('fullscreen-map-close-btn');
+        const routeMapThumbnail = document.getElementById('route-map-thumbnail');
+        const routeMapContainer = document.getElementById('route-map-container');
+
+
+        let durationChartInstance = null;
+
+        function createTimelineItem(item) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'timeline-item relative flex items-start group cursor-pointer';
+
+            const iconContainer = document.createElement('div');
+            iconContainer.className = `flex-shrink-0 w-20 h-20 rounded-full ${item.bgColor} flex items-center justify-center text-4xl shadow-md border-4 border-white transform group-hover:scale-110 transition-transform`;
+            iconContainer.textContent = item.icon;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'ml-6 bg-white p-6 rounded-2xl shadow-lg flex-grow';
+            
+            const timeP = document.createElement('p');
+            timeP.className = `font-bold text-lg ${item.textColor}`;
+            timeP.textContent = item.time;
+
+            const titleH4 = document.createElement('h4');
+            titleH4.className = 'text-xl font-bold text-gray-900 mt-1';
+            titleH4.textContent = item.title;
+            
+            const durationP = document.createElement('p');
+            durationP.className = 'text-sm text-gray-500 mt-1';
+            durationP.textContent = item.duration;
+
+            const ctaP = document.createElement('p');
+            ctaP.className = 'text-sm font-semibold text-blue-600 mt-3 group-hover:underline';
+            ctaP.textContent = '查看詳情 →';
+
+            contentDiv.appendChild(timeP);
+            contentDiv.appendChild(titleH4);
+            if(item.duration) contentDiv.appendChild(durationP);
+            contentDiv.appendChild(ctaP);
+
+            itemDiv.appendChild(iconContainer);
+            itemDiv.appendChild(contentDiv);
+            
+            itemDiv.addEventListener('click', () => {
+                modalTitle.textContent = `${item.icon} ${item.title}`;
+                modalContent.innerHTML = item.details;
+                modal.classList.remove('hidden');
+                setTimeout(()=> modal.classList.remove('opacity-0'), 10);
+                setTimeout(()=> modal.querySelector('div').classList.remove('scale-95'), 10);
+            });
+            return itemDiv;
+        }
+        
+        function populateTimeline(day, container) {
+            const timelineItemsWrapper = container.querySelector('.timeline-items-container');
+            timelineItemsWrapper.innerHTML = '';
+            itineraryData[day].forEach(item => {
+                timelineItemsWrapper.appendChild(createTimelineItem(item));
+            });
+        }
+
+        function switchTab(activeTabId) {
+            const tabs = [overviewBtn, day1Btn, day2Btn, activitiesBtn];
+            const contents = [overviewContent, day1Content, day2Content, activitiesContent];
+
+            tabs.forEach(btn => btn.classList.remove('active'));
+            contents.forEach(content => content.classList.add('hidden'));
+
+            if (activeTabId === 'overview') {
+                overviewBtn.classList.add('active');
+                overviewContent.classList.remove('hidden');
+            } else if (activeTabId === 'day1') {
+                day1Btn.classList.add('active');
+                day1Content.classList.remove('hidden');
+            } else if (activeTabId === 'day2') {
+                day2Btn.classList.add('active');
+                day2Content.classList.remove('hidden');
+            } else if (activeTabId === 'activities') {
+                activitiesBtn.classList.add('active');
+                activitiesContent.classList.remove('hidden');
+            }
+
+            // Hide/show timeline-line based on tab
+            day1Content.querySelector('.timeline-line').classList.toggle('hidden', activeTabId !== 'day1');
+            day2Content.querySelector('.timeline-line').classList.toggle('hidden', activeTabId !== 'day2');
+
+            if (activeTabId === 'overview' && durationChartInstance) {
+                durationChartInstance.resize();
+            }
+        }
+
+        overviewBtn.addEventListener('click', () => switchTab('overview'));
+        day1Btn.addEventListener('click', () => switchTab('day1'));
+        day2Btn.addEventListener('click', () => switchTab('day2'));
+        activitiesBtn.addEventListener('click', () => switchTab('activities'));
+
+        modalCloseBtn.addEventListener('click', () => {
+             modal.classList.add('opacity-0');
+             modal.querySelector('div').classList.add('scale-95');
+             setTimeout(()=> modal.classList.add('hidden'), 300);
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if(e.target === modal) {
+                modalCloseBtn.click();
+            }
+        });
+
+        // Fullscreen map logic
+        routeMapContainer.addEventListener('click', () => {
+            fullscreenMapImage.src = routeMapThumbnail.src; // Set the full image source
+            fullscreenMapModal.classList.add('open');
+        });
+
+        fullscreenMapCloseBtn.addEventListener('click', () => {
+            fullscreenMapModal.classList.remove('open');
+        });
+
+        fullscreenMapModal.addEventListener('click', (e) => {
+            if (e.target === fullscreenMapModal || e.target === fullscreenMapImage) { // Allow clicking image to close too
+                fullscreenMapModal.classList.remove('open');
+            }
+        });
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateTimeline('day1', day1Content);
+            populateTimeline('day2', day2Content);
+            
+            const ctx = document.getElementById('durationChart').getContext('2d');
+            
+            const parseDuration = (durationStr) => {
+                if (!durationStr) return 0;
+                let totalMinutes = 0;
+                // Regex to correctly capture hours and minutes even if only one is present
+                const hoursMatch = durationStr.match(/(\d+)\s*小時/);
+                const minutesMatch = durationStr.match(/(\d+)\s*分/);
+
+                if(hoursMatch && hoursMatch[1]) {
+                    totalMinutes += parseInt(hoursMatch[1]) * 60;
+                }
+                if(minutesMatch && minutesMatch[1]) {
+                    totalMinutes += parseInt(minutesMatch[1]);
+                }
+                return totalMinutes;
+            };
+            
+            const durations = [
+                parseDuration(itineraryData.day1[0].duration),
+                parseDuration(itineraryData.day1[1].duration),
+                parseDuration(itineraryData.day1[2].duration),
+                parseDuration(itineraryData.day2[1].duration)
+            ];
+
+            durationChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['旅程總覽'],
+                    datasets: [
+                        {
+                            label: '火車 (Oslo → Myrdal)',
+                            data: [durations[0]],
+                            backgroundColor: 'rgba(220, 38, 38, 0.8)', /* Red 600 */
+                            borderColor: 'rgba(220, 38, 38, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '火車 (Myrdal → Flåm)',
+                            data: [durations[1]],
+                            backgroundColor: 'rgba(30, 64, 175, 0.8)', /* Blue 800 */
+                            borderColor: 'rgba(30, 64, 175, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '渡輪 (Flåm → Balestrand)',
+                            data: [durations[2]],
+                            backgroundColor: 'rgba(153, 27, 27, 0.8)', /* Red 800 */
+                            borderColor: 'rgba(153, 27, 27, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '渡輪 (Balestrand → Bergen)',
+                            data: [durations[3]],
+                            backgroundColor: 'rgba(96, 165, 250, 0.8)', /* Blue 400 */
+                            borderColor: 'rgba(96, 165, 250, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: false },
+                        legend: { position: 'bottom', labels: { boxWidth: 20, padding: 20 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.x !== null) {
+                                        const hours = Math.floor(context.parsed.x / 60);
+                                        const minutes = context.parsed.x % 60;
+                                        label += `${hours} 小時 ${minutes} 分`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            display: false,
+                        },
+                        y: {
+                            stacked: true,
+                            display: false,
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 5, bottom: 5, left: 10, right: 10
+                        }
+                    }
+                }
+            });
+            switchTab('overview');
+        });
+    </script>
+</body>
+</html>
